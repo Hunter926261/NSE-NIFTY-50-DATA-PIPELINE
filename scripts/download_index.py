@@ -1,3 +1,4 @@
+import sys
 import requests
 from datetime import datetime, timedelta
 import time
@@ -13,8 +14,18 @@ BASE_HOME = "https://www.nseindia.com"
 INDEX_RAW_DIR = BASE_DIR / "data" / "raw" / "index"
 INDEX_RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-START_DATE = "2015-01-01"
-END_DATE   = "2015-12-31"  # test 1 year first
+# -----------------------------------
+# Accept START_YEAR and END_YEAR
+# -----------------------------------
+if len(sys.argv) != 3:
+    print("Usage: python -m scripts.download_index START_YEAR END_YEAR")
+    sys.exit(1)
+
+start_year = int(sys.argv[1])
+end_year = int(sys.argv[2])
+
+START_DATE = f"{start_year}-01-01"
+END_DATE   = f"{end_year}-12-31"
 
 
 def build_url(date):
@@ -38,7 +49,8 @@ def main():
         "Accept-Language": "en-US,en;q=0.9"
     })
 
-    session.get(BASE_HOME)  # Initialize cookies
+    # Initialize cookies
+    session.get(BASE_HOME)
 
     while current <= end:
         url, file_name = build_url(current)
