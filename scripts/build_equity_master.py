@@ -6,7 +6,13 @@ import re
 
 logger = get_logger("equity_master")
 
-EQUITY_DIR = BASE_DIR / "data" / "processed" / "equity"
+# 📂 Equity data is seperated yearly & master section
+EQUITY_YEARLY_DIR = BASE_DIR / "data" / "processed" / "equity" / "yearly"
+EQUITY_MASTER_DIR = BASE_DIR / "data" / "processed" / "equity" / "master"
+
+# Ensure master directory exists
+EQUITY_MASTER_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def extract_year(filename: str):
     """
@@ -21,7 +27,8 @@ def extract_year(filename: str):
 
 
 def main():
-    yearly_files = sorted(EQUITY_DIR.glob("nse_*.csv"))
+    # 🔄 Read from yearly folder
+    yearly_files = sorted(EQUITY_YEARLY_DIR.glob("nse_*.csv"))
 
     all_data = []
     years = []
@@ -47,17 +54,18 @@ def main():
         logger.error("Could not detect year range from filenames.")
         return
 
-    # Merge all data
+    # 🔗 Merge all yearly data
     master_df = pd.concat(all_data, ignore_index=True)
 
-    # Detect year range
+    # 📅 Detect year range
     start_year = min(years)
     end_year = max(years)
 
-    # Dynamic master filename
+    # 📝 Dynamic master filename
     master_filename = f"nse_master_{start_year}_{end_year}.csv"
-    master_path = EQUITY_DIR / master_filename
+    master_path = EQUITY_MASTER_DIR / master_filename
 
+    # 💾 Save master file in master folder
     master_df.to_csv(master_path, index=False)
 
     logger.info(f"Master equity dataset created successfully: {master_filename}")
