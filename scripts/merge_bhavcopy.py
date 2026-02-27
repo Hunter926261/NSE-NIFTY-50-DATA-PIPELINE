@@ -102,7 +102,7 @@ def main():
         # -------------------------------
         # Save output
         # -------------------------------
-        output_path = equity_dir / f"nse_{target_year}.csv"
+        output_path = equity_dir/ "yearly" / f"nse_{target_year}.csv"
         final_df.to_csv(output_path, index=False)
 
         logger.info(f"Year {target_year} merge completed successfully.")

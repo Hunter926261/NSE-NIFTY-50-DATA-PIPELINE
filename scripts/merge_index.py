@@ -106,7 +106,7 @@ def main():
         ]
 
         output_path = (
-            INDEX_PROCESSED_DIR /
+            INDEX_PROCESSED_DIR / "yearly" /
             f"nifty50_index_{target_year}.csv"
         )
 
