@@ -16,40 +16,138 @@ if len(sys.argv) != 2:
 target_year = sys.argv[1]
 
 
+# -----------------------------------------
+# Extract trade date from filename (OLD + NEW)
+# -----------------------------------------
 def extract_date_from_filename(filename):
-    """
-    Example filename:
-    cm01JAN2015bhav.csv
-    Extracts 01JAN2015
-    """
-    date_str = filename[2:11]
-    return pd.to_datetime(date_str, format="%d%b%Y")
+
+    # OLD FORMAT
+    if filename.startswith("cm"):
+        date_str = filename[2:11]  # 01JAN2015
+        return pd.to_datetime(date_str, format="%d%b%Y")
+
+    # NEW FORMAT (UDiFF)
+    elif filename.startswith("BhavCopy"):
+        parts = filename.split("_")
+        date_str = parts[6]  # YYYYMMDD
+        return pd.to_datetime(date_str, format="%Y%m%d")
+
+    else:
+        raise ValueError(f"Unknown filename format: {filename}")
+
+
+# -----------------------------------------
+# Normalize OLD format
+# -----------------------------------------
+def normalize_old_format(df):
+
+    df.columns = df.columns.str.lower().str.strip()
+
+    df = df[df["series"] == "EQ"]
+
+    df = df.rename(columns={
+        "symbol": "symbol",
+        "series": "series",
+        "open": "open",
+        "high": "high",
+        "low": "low",
+        "close": "close",
+        "last": "last",
+        "prevclose": "prevclose",
+        "tottrdqty": "tottrdqty",
+        "tottrdval": "tottrdval",
+        "totaltrades": "totaltrades",
+        "isin": "isin",
+        "timestamp": "timestamp"
+    })
+
+    return df
+
+
+# -----------------------------------------
+# Normalize NEW UDiFF format
+# -----------------------------------------
+def normalize_udiff_format(df):
+
+    df.columns = df.columns.str.lower().str.strip()
+
+    # Filter only Cash Market (CM) + Equity
+    df = df[df["sgmt"] == "CM"]
+    df = df[df["sctysrs"] == "EQ"]
+
+    df = df.rename(columns={
+        "tckrsymb": "symbol",
+        "sctysrs": "series",
+        "opnpric": "open",
+        "hghpric": "high",
+        "lwpric": "low",
+        "clspric": "close",
+        "lastpric": "last",
+        "prvsclsgpric": "prevclose",
+        "ttltradgvol": "tottrdqty",
+        "ttltrfval": "tottrdval",
+        "ttlnboftxsexctd": "totaltrades",
+        "isin": "isin",
+        "traddt": "timestamp"
+    })
+
+    return df
 
 
 def main():
 
-    # ---------------------------------
-    # Filter files only for given year
-    # ---------------------------------
-    csv_files = list(EXTRACTED_DIR.glob(f"cm*{target_year}bhav.csv"))
+    csv_files = list(EXTRACTED_DIR.glob("*.csv"))
 
     if not csv_files:
-        logger.warning(f"No files found for year {target_year}")
+        logger.warning("No CSV files found.")
         return
 
     all_data = []
 
     for file in csv_files:
         try:
+            trade_date = extract_date_from_filename(file.name)
+
+            if str(trade_date.year) != target_year:
+                continue
+
             df = pd.read_csv(file)
 
-            # Filter only Equity series
-            if "SERIES" in df.columns:
-                df = df[df["SERIES"] == "EQ"]
+            df.columns = df.columns.str.lower().str.strip()
 
-            # Add trade date
-            trade_date = extract_date_from_filename(file.name)
-            df["TRADE_DATE"] = trade_date
+            # Detect format automatically
+            if "symbol" in df.columns and "series" in df.columns:
+                df = normalize_old_format(df)
+
+            elif "tckrsymb" in df.columns:
+                df = normalize_udiff_format(df)
+
+            else:
+                logger.warning(f"Unknown structure in {file.name}")
+                continue
+
+            # Add trade_date column
+            df["trade_date"] = trade_date
+
+            # Keep only standardized columns
+            required_columns = [
+                "symbol",
+                "series",
+                "open",
+                "high",
+                "low",
+                "close",
+                "last",
+                "prevclose",
+                "tottrdqty",
+                "tottrdval",
+                "totaltrades",
+                "isin",
+                "timestamp",
+                "trade_date",
+            ]
+
+            df = df[required_columns]
 
             all_data.append(df)
 
@@ -61,55 +159,17 @@ def main():
     if all_data:
         final_df = pd.concat(all_data, ignore_index=True)
 
-        # -------------------------------
-        # Standardize column names
-        # -------------------------------
-        final_df.columns = [col.lower().strip() for col in final_df.columns]
-
-        # -------------------------------
-        # Drop unwanted columns
-        # -------------------------------
-        cols_to_drop = ["unnamed: 13"]
-        final_df = final_df.drop(
-            columns=[col for col in cols_to_drop if col in final_df.columns]
-        )
-
-        # -------------------------------
-        # Convert numeric columns
-        # -------------------------------
-        numeric_cols = [
-            "open",
-            "high",
-            "low",
-            "close",
-            "last",
-            "prevclose",
-            "tottrdqty",
-            "tottrdval",
-            "totaltrades",
-        ]
-
-        for col in numeric_cols:
-            if col in final_df.columns:
-                final_df[col] = pd.to_numeric(final_df[col], errors="coerce")
-
-        # -------------------------------
-        # Create equity folder if needed
-        # -------------------------------
-        equity_dir = PROCESSED_DIR / "equity"
+        equity_dir = PROCESSED_DIR / "equity" / "yearly"
         equity_dir.mkdir(parents=True, exist_ok=True)
 
-        # -------------------------------
-        # Save output
-        # -------------------------------
-        output_path = equity_dir/ "yearly" / f"nse_{target_year}.csv"
+        output_path = equity_dir / f"nse_{target_year}.csv"
         final_df.to_csv(output_path, index=False)
 
         logger.info(f"Year {target_year} merge completed successfully.")
         logger.info(f"Saved to: {output_path}")
 
     else:
-        logger.warning("No data to merge.")
+        logger.warning(f"No data found for year {target_year}.")
 
 
 if __name__ == "__main__":
