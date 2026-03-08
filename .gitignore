@@ -2,7 +2,7 @@ venv/
 data/raw/
 data/extracted/
 data/processed/
-data/features
+data/features/
 logs/
 __pycache__/
 *.pyc
